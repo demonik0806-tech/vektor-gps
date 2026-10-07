@@ -186,11 +186,12 @@
 
     function inicializarMapaAdmin() {
         adminMap = L.map('adminMap').setView([4.6097, -74.0817], 13);
-        // SOLUCIÓN DEL BLOQUEO 403: Cabeceras personalizadas de OpenStreetMap
-        L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { 
-            attribution: '© OpenStreetMap',
-            userAgent: 'VektorGPSAdminApp/1.0',
-            referrerPolicy: 'no-referrer'
+        
+        // OPCIÓN 1: CARTODB VOYAGER (Capa profesional que no bloquea la aplicación)
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/">CARTO</a>',
+            subdomains: 'abcd',
+            maxZoom: 20
         }).addTo(adminMap);
     }
 
@@ -258,87 +259,4 @@
             else {
                 let tablaHtml = `<table class="excel-table"><tr><th>Técnico</th><th>PIN</th><th>Config. GPS</th><th>Estado</th><th>Acciones</th></tr>`;
                 data.data.forEach(t => {
-                    let badgeClass = t.status === 'approved' ? 'badge activo' : 'badge bloqueado';
-                    tablaHtml += `<tr>
-                        <td><b>${t.name}</b><br><span style="font-size:11px;color:#888;">${t.phone}</span></td>
-                        <td style="display: flex; align-items: center; gap: 5px;">
-                            <span class="pin-texto" data-pin="${t.pin}" style="font-family: monospace; color: #808191;">***</span>
-                            <button onclick="togglePin(this)" style="background:none; border:none; cursor:pointer; font-size:14px;">👁️</button>
-                        </td>
-                        <td><button onclick="configurarTécnico('${t.phone}', '${t.name}', '${t.color}')" style="background:#3a3f50; color:white; border:none; padding:4px 8px; border-radius:4px; cursor:pointer; font-size:12px;">🎨 Nombre y Color</button></td>
-                        <td><span class="${badgeClass}">${t.status.toUpperCase()}</span></td>
-                        <td>
-                            <button onclick="editarPin('${t.phone}', '${t.pin}')" style="background:var(--accent); color:white; border:none; padding:4px 8px; border-radius:4px; cursor:pointer; font-size:12px;">Editar PIN</button>
-                            <button onclick="eliminarTecnico('${t.phone}')" style="background:var(--danger); color:white; border:none; padding:4px 8px; border-radius:4px; cursor:pointer; font-size:12px;">Eliminar</button>
-                        </td>
-                    </tr>`;
-                });
-                document.getElementById('contenedorTablaExcel').innerHTML = tablaHtml + `</table>`;
-            }
-        });
-
-        fetch('/api/admin/metricas', { headers: { 'X-App-Secret': SECRET } }).then(res => res.json()).then(data => {
-            if(data.success) actualizarLineChart(data.data.timeline);
-        });
-    }
-
-    function togglePin(btn) {
-        const span = btn.previousElementSibling;
-        if(span.innerText === '***') { span.innerText = span.getAttribute('data-pin'); span.style.color = 'var(--accent)'; btn.innerText = '🙈'; } 
-        else { span.innerText = '***'; span.style.color = '#808191'; btn.innerText = '👁️'; }
-    }
-
-    async function editarPin(phone, pinActual) {
-        const validacion = prompt(`SEGURIDAD: Ingrese el PIN ACTUAL del técnico ${phone} para autorizar el cambio:`);
-        if(validacion !== pinActual) return alert("❌ PIN actual incorrecto. Modificación cancelada.");
-        const nuevoPin = prompt(`Ingrese el NUEVO PIN para el técnico ${phone}:`);
-        if(nuevoPin && nuevoPin !== pinActual) {
-            await fetch('/api/admin/editar-pin', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-App-Secret': SECRET }, body: JSON.stringify({ phone: phone, pin: nuevoPin }) });
-            alert("✅ PIN modificado."); actualizarPanel();
-        }
-    }
-
-    async function configurarTécnico(phone, nombreActual, colorActual) {
-        const nuevoNombre = prompt(`Asigna un nombre para el mapa:`, nombreActual);
-        if(!nuevoNombre) return;
-        const nuevoColor = prompt(`Asigna un color Hexadecimal (Ej. #FF0000 rojo, #00FF00 verde, #FFFF00 amarillo):`, colorActual);
-        if(!nuevoColor) return;
-        await fetch('/api/admin/configurar-tecnico', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-App-Secret': SECRET }, body: JSON.stringify({ phone: phone, name: nuevoNombre, color: nuevoColor }) });
-        alert("✅ Configuración guardada."); actualizarPanel();
-    }
-
-    async function aprobar(phone) {
-        const pinVal = document.getElementById(`pin-${phone}`).value;
-        if(!pinVal) return alert("Escribe un PIN para autorizar.");
-        await fetch('/api/admin/aprobar', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-App-Secret': SECRET }, body: JSON.stringify({ phone: phone, pin: pinVal }) });
-        actualizarPanel();
-    }
-
-    async function eliminarTecnico(phone) {
-        if(confirm(`¿Deseas eliminar permanentemente a ${phone}?`)) {
-            await fetch('/api/admin/eliminar', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-App-Secret': SECRET }, body: JSON.stringify({ phone: phone }) });
-            if(adminMarkers[phone]) { adminMap.removeLayer(adminMarkers[phone]); delete adminMarkers[phone]; }
-            if(adminPaths[phone]) { adminMap.removeLayer(adminPaths[phone]); delete adminPaths[phone]; }
-            actualizarPanel();
-        }
-    }
-
-    function crearPerfil() {
-        const tel = document.getElementById('nuevoTel').value, pin = document.getElementById('nuevoPin').value;
-        if(!tel || !pin) return alert("Llena ambos campos.");
-        fetch('/api/admin/crear-perfil', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-App-Secret': SECRET }, body: JSON.stringify({ phone: tel, pin: pin }) })
-        .then(res => res.json()).then(data => {
-            if(data.success) { alert("✅ Técnico guardado."); document.getElementById('nuevoTel').value = ""; document.getElementById('nuevoPin').value = ""; document.querySelectorAll('.nav-item')[2].click(); actualizarPanel(); } 
-        });
-    }
-
-    function actualizarLineChart(timeline) {
-        const ctx = document.getElementById('lineChart').getContext('2d');
-        if (lineChartObj) { lineChartObj.data.labels = timeline.labels; lineChartObj.data.datasets[0].data = timeline.activos; lineChartObj.data.datasets[1].data = timeline.errores; lineChartObj.update(); } 
-        else {
-            lineChartObj = new Chart(ctx, { type: 'line', data: { labels: timeline.labels, datasets: [ { label: 'Usuarios Activos', data: timeline.activos, borderColor: '#ff3b30', backgroundColor: 'rgba(255, 59, 48, 0.2)', fill: true, tension: 0.4, borderWidth: 3 }, { label: 'Bloqueos / Errores', data: timeline.errores, borderColor: '#6c5ce7', backgroundColor: 'transparent', fill: false, tension: 0.4, borderWidth: 2, borderDash: [5, 5] } ] }, options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true, grid: { color: '#3a3f50' }, ticks: { color: '#808191', stepSize: 1 } }, x: { grid: { display: false }, ticks: { color: '#808191' } } }, plugins: { legend: { labels: { color: '#ffffff' } } } } });
-        }
-    }
-</script>
-</body>
-</html>
+                    let badgeClass = t.status === 'approved' ? 'badge 
