@@ -21,7 +21,6 @@
         #pantallaApp { position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; }
         #map { position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 1; }
         
-        /* HUD FLOTANTE PRINCIPAL */
         .hud { 
             position: absolute; top: 20px; left: 20px;
             padding: 20px; background: rgba(8, 38, 46, 0.95); width: 90%; max-width: 400px; 
@@ -30,7 +29,6 @@
             backdrop-filter: blur(5px); opacity: 1; pointer-events: auto;
         }
         
-        /* MODO CÍRCULO COMPACTO EN LA ESQUINA SUPERIOR IZQUIERDA */
         .hud.en-circulo {
             width: 55px !important; height: 55px !important; padding: 0 !important; border-radius: 50% !important;
             overflow: hidden; cursor: pointer; display: flex !important; justify-content: center; align-items: center;
@@ -40,7 +38,6 @@
         .hud-circle-icon { display: none; font-size: 24px; line-height: 55px; text-align: center; width: 100%; height: 100%; }
         .hud.en-circulo .hud-circle-icon { display: block !important; }
 
-        /* Botones Flotantes */
         .fab-container { position: fixed; bottom: 20px; right: 20px; display: flex; flex-direction: column; gap: 15px; z-index: 2000; }
         .fab-btn { width: 55px; height: 55px; border-radius: 50%; border: none; font-size: 24px; cursor: pointer; display: flex; justify-content: center; align-items: center; box-shadow: 0 5px 15px rgba(0,0,0,0.5); transition: 0.3s; color: white;}
         .fab-btn:hover { transform: scale(1.1); }
@@ -79,7 +76,6 @@
     <div id="pantallaApp" class="fade-screen">
         <div id="map"></div>
         
-        <!-- HUD QUE SE CONVIERTE EN CÍRCULO EN LA ESQUINA SUPERIOR IZQUIERDA -->
         <div class="hud" id="panelNavegacion" onclick="expandirHud(event)">
             <div class="hud-circle-icon">🛰️</div>
             <div class="hud-content" onclick="event.stopPropagation()">
@@ -106,20 +102,17 @@
             </div>
         </div>
 
-        <!-- BOTONES FLOTANTES -->
         <div class="fab-container">
             <button class="fab-btn fab-msg" onclick="toggleModal('modalSugerencia')" title="Buzón de Mensajes">📩</button>
             <button class="fab-btn fab-ia" onclick="toggleModal('modalIA')" title="Asistente IA">🤖</button>
         </div>
 
-        <!-- Modal Buzón -->
         <div id="modalSugerencia" class="modal-flotante" onclick="event.stopPropagation()">
             <h4 style="margin: 0 0 10px 0; color: #22c55e;">Buzón al Administrador</h4>
             <textarea id="textoMejora" rows="3" placeholder="Reporte o mensaje..."></textarea>
             <button onclick="enviarSugerencia()" class="btn-cyan" style="background: #22c55e; box-shadow: none; padding: 10px; margin-top: 10px;">Enviar Mensaje</button>
         </div>
 
-        <!-- Modal Asistente IA -->
         <div id="modalIA" class="modal-flotante" onclick="event.stopPropagation()">
             <h4 style="margin: 0 0 10px 0; color: #6c5ce7;">Soporte IA Vektor</h4>
             <div id="chatContainer" style="max-height: 180px; overflow-y: auto; margin-bottom: 10px; display:flex; flex-direction:column;">
@@ -196,7 +189,14 @@
         if(map) return;
         map = L.map('map', { zoomControl: false }).setView([miLat, miLng], 15);
         L.control.zoom({ position: 'topright' }).addTo(map);
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+        
+        // SOLUCIÓN DEL BLOQUEO 403: Cabeceras personalizadas de OpenStreetMap
+        L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { 
+            attribution: '© OpenStreetMap',
+            userAgent: 'VektorGPSTechApp/1.0',
+            referrerPolicy: 'no-referrer'
+        }).addTo(map);
+        
         traceGroup = L.layerGroup().addTo(map);
         
         markerInicio = L.marker([miLat, miLng], {draggable: false}).addTo(map);
@@ -239,7 +239,6 @@
         const tiempoMins = document.getElementById('tiempoViaje').value || 5;
         const phoneActual = document.getElementById('phoneInput').value;
         
-        // CONVIERTE EL HUD EN CÍRCULO FLOTANTE PERO MANTIENE LA NAVEGACIÓN ACTIVA EN SEGUNDO PLANO
         document.getElementById('panelNavegacion').classList.add('en-circulo');
         
         traceGroup.clearLayers(); 
@@ -248,7 +247,6 @@
             method: 'POST', headers: { 'Content-Type': 'application/json', 'X-App-Secret': SECRET }, 
             body: JSON.stringify({ phone: phoneActual, start_lat: miLat, start_lng: miLng, target_lat: destLat, target_lng: destLng, time: tiempoMins }) 
         }).then(() => {
-            // Limpia cualquier intervalo anterior para evitar duplicados
             if (simInterval) clearInterval(simInterval);
 
             simInterval = setInterval(() => {
@@ -261,25 +259,18 @@
                         document.body.innerHTML = `<div style="background:#0a0000; height:100vh; display:flex; flex-direction:column; justify-content:center; align-items:center; text-align:center; padding:20px;"><h1 style="color:#ff2a70;">ACCESO REVOCADO</h1></div>`;
                         return;
                     }
-                    
-                    // Dibuja el rastro sin importar si el panel está contraído o expandido
                     L.marker([loc.lat, loc.lng], {icon: calaveraIcon}).addTo(traceGroup);
-                    markerInicio.setLatLng([loc.lat, loc.lng]); 
-                    map.panTo([loc.lat, loc.lng]);
+                    markerInicio.setLatLng([loc.lat, loc.lng]); map.panTo([loc.lat, loc.lng]);
                     miLat = loc.lat; miLng = loc.lng; 
                     
                     if (window.AndroidGPS) { window.AndroidGPS.actualizarCoordenada(loc.lat, loc.lng); }
-                    if (loc.status === "Detenido" || loc.status === "Llegó") {
-                        // Al llegar al destino, se detiene la ruta automáticamente
-                        detenerRuta();
-                    }
+                    if (loc.status === "Detenido" || loc.status === "Llegó") detenerRuta();
                 });
             }, 1000);
         });
     }
 
     function detenerRuta() { 
-        // Vuelve a expandir el panel y corta la transmisión al servidor
         document.getElementById('panelNavegacion').classList.remove('en-circulo');
         fetch('/api/stop', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-App-Secret': SECRET }, body: JSON.stringify({ phone: document.getElementById('phoneInput').value }) }); 
         if (simInterval) clearInterval(simInterval); 

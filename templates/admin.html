@@ -115,7 +115,6 @@
                         <h1 style="margin: 0;">Centro de Rastreo Global</h1>
                         <p style="color: #808191; margin: 0;">Visualización de técnicos e historial.</p>
                     </div>
-                    <!-- CONTROL DE TAMAÑO DE CALAVERAS AJUSTABLE -->
                     <div style="background: var(--bg-card); padding: 10px 15px; border-radius: 8px; border: 1px solid #3a3f50;">
                         <label style="font-size: 12px; color: var(--accent); font-weight: bold;">Tamaño Calaveras GPS:</label>
                         <input type="range" id="sizeRange" min="20" max="60" value="32" oninput="actualizarPanel()" style="width: 120px; vertical-align: middle; margin-left: 10px;">
@@ -187,7 +186,12 @@
 
     function inicializarMapaAdmin() {
         adminMap = L.map('adminMap').setView([4.6097, -74.0817], 13);
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap' }).addTo(adminMap);
+        // SOLUCIÓN DEL BLOQUEO 403: Cabeceras personalizadas de OpenStreetMap
+        L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { 
+            attribution: '© OpenStreetMap',
+            userAgent: 'VektorGPSAdminApp/1.0',
+            referrerPolicy: 'no-referrer'
+        }).addTo(adminMap);
     }
 
     function centrarEnTecnico(lat, lng) {
