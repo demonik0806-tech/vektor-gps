@@ -21,6 +21,7 @@
         #pantallaApp { position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; }
         #map { position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 1; }
         
+        /* HUD FLOTANTE PRINCIPAL */
         .hud { 
             position: absolute; top: 20px; left: 20px;
             padding: 20px; background: rgba(8, 38, 46, 0.95); width: 90%; max-width: 400px; 
@@ -29,6 +30,7 @@
             backdrop-filter: blur(5px); opacity: 1; pointer-events: auto;
         }
         
+        /* MODO CÍRCULO COMPACTO */
         .hud.en-circulo {
             width: 55px !important; height: 55px !important; padding: 0 !important; border-radius: 50% !important;
             overflow: hidden; cursor: pointer; display: flex !important; justify-content: center; align-items: center;
@@ -38,6 +40,7 @@
         .hud-circle-icon { display: none; font-size: 24px; line-height: 55px; text-align: center; width: 100%; height: 100%; }
         .hud.en-circulo .hud-circle-icon { display: block !important; }
 
+        /* Botones Flotantes */
         .fab-container { position: fixed; bottom: 20px; right: 20px; display: flex; flex-direction: column; gap: 15px; z-index: 2000; }
         .fab-btn { width: 55px; height: 55px; border-radius: 50%; border: none; font-size: 24px; cursor: pointer; display: flex; justify-content: center; align-items: center; box-shadow: 0 5px 15px rgba(0,0,0,0.5); transition: 0.3s; color: white;}
         .fab-btn:hover { transform: scale(1.1); }
@@ -169,11 +172,15 @@
                 localStorage.setItem('vektor_phone', phone);
                 document.getElementById('cajaPin').innerHTML = "<h2 class='glow-title' style='color:#22c55e;'>AUTORIZADO</h2><p style='color:white;'>Obteniendo GPS real...</p>";
                 
+                // PARCHE DE TIMEOUT PARA EVITAR QUE SE QUEDE PEGADO
                 if (navigator.geolocation) {
                     navigator.geolocation.getCurrentPosition(pos => {
                         miLat = pos.coords.latitude; miLng = pos.coords.longitude;
                         abrirMapa();
-                    }, err => { abrirMapa(); }, {enableHighAccuracy: true});
+                    }, err => { 
+                        console.warn("Retraso de GPS detectado, forzando mapa.");
+                        abrirMapa(); 
+                    }, {enableHighAccuracy: true, timeout: 5000});
                 } else abrirMapa();
             } else alert("❌ " + data.error);
         });
@@ -190,11 +197,11 @@
         map = L.map('map', { zoomControl: false }).setView([miLat, miLng], 15);
         L.control.zoom({ position: 'topright' }).addTo(map);
         
-        // SOLUCIÓN DEL BLOQUEO 403: Cabeceras personalizadas de OpenStreetMap
-        L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { 
-            attribution: '© OpenStreetMap',
-            userAgent: 'VektorGPSTechApp/1.0',
-            referrerPolicy: 'no-referrer'
+        // OPCIÓN 1: CARTODB (Rápido, elegante y nunca te dará error 403)
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/">CARTO</a>',
+            subdomains: 'abcd',
+            maxZoom: 20
         }).addTo(map);
         
         traceGroup = L.layerGroup().addTo(map);
@@ -319,25 +326,4 @@
                 document.getElementById('saludoTecnico').innerText = `¡Hola, ${nombreTecnico}! 👋`;
                 respuesta = `¡Perfecto! Desde ahora te recordaré como ${nombreTecnico}. ¿En qué te ayudo con tu destino hoy?`;
             } else if(lower.includes("ruta") || lower.includes("calle") || lower.includes("destino") || lower.includes("ir a") || lower.includes("dirección")) {
-                respuesta = nombreTecnico ? `${nombreTecnico}, recuerda escribir la calle o dirección en el buscador superior y fijar los minutos de viaje antes de dar clic en Iniciar Ruta.` : `Usa el buscador superior para fijar tu destino. Por cierto, ¿cómo quieres que te llame?`;
-            } else if(lower.includes("hola") || lower.includes("buen dia") || lower.includes("buenos días") || lower.includes("buenas")) {
-                respuesta = nombreTecnico ? `¡Hola de nuevo, ${nombreTecnico}! Tienes conexión estable con la central Vektor. ¿Listo para el turno?` : `¡Hola! Para darte una mejor atención, dime: ¿cómo quieres que te llame?`;
-            } else if(lower.includes("estado") || lower.includes("gps") || lower.includes("señal") || lower.includes("ubicación")) {
-                respuesta = `Tu señal GPS está activa, emitiendo rastro en tiempo real y sincronizada con el mapa del administrador.`;
-            } else if(lower.includes("ayuda") || lower.includes("soporte") || lower.includes("problema") || lower.includes("falla")) {
-                respuesta = `Si tienes inconvenientes, puedes reportarlo instantáneamente al administrador usando el botón verde de buzón (📩) ubicado en la parte inferior derecha.`;
-            } else if(lower.includes("gracias") || lower.includes("ok") || lower.includes("perfecto")) {
-                respuesta = `¡Con mucho gusto! Estoy aquí para asegurarme de que tu ruta sea segura y fluida.`;
-            } else if(lower.includes("clima") || lower.includes("tiempo")) {
-                respuesta = `Revisa las condiciones climáticas locales antes de iniciar tu desplazamiento para evitar demoras.`;
-            } else {
-                respuesta = nombreTecnico ? `Comprendo, ${nombreTecnico}. ¿Necesitas que te ayude a recalcular algún punto en el mapa o tienes dudas sobre el servicio?` : `Estoy aquí para asistirte en tu turno. Dime cómo te llamas para personalizar nuestra conversación.`;
-            }
-
-            chat.innerHTML += `<div class="msg-ia">${respuesta}</div>`;
-            chat.scrollTop = chat.scrollHeight;
-        }, 300);
-    }
-</script>
-</body>
-</html>
+                respuesta = nombreTecnico ? `${nombreTecnico}, recuerda escribir la calle o dirección en el buscador superior y fijar los minutos
