@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vektor Técnico</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+    <style>
+        body { margin: 0; font-family: 'Segoe UI', sans-serif; background: #071a1f; color: #E0E0E0; overflow: hidden; }
+        .fade-screen { opacity: 0; transition: opacity 0.6s ease-in-out; display: none; z-index: 10; }
+        .fade-screen.active { opacity: 1; display: flex; }
+        .fullscreen-center { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; flex-direction: column; justify-content: center; align-items: center; background: radial-gradient(circle at center, #0a252c 0%, #040e11 100%); }
+
+        .auth-box { width: 90%; max-width: 350px; background: rgba(8, 38, 46, 0.9); padding: 30px; border-radius: 12px; text-align: center; box-shadow: 0 4px 20px rgba(0, 210, 255, 0.2); border: 1px solid #105060; z-index: 2;}
+        .glow-title { color: #00d2ff; letter-spacing: 5px; text-transform: uppercase; text-shadow: 0 0 10px rgba(0, 210, 255, 0.5); }
+        .pin-input { width: 100%; padding: 15px; margin-bottom: 20px; border-radius: 8px; border: 1px solid #105060; background: #040e11; color: #00d2ff; text-align: center; font-size: 18px; outline: none; box-sizing: border-box; }
+        .btn-cyan { background: #00d2ff; color: #000; font-weight: bold; font-size: 15px; padding: 15px; width: 100%; border-radius: 8px; border: none; cursor: pointer; text-transform: uppercase; box-shadow: 0 4px 15px rgba(0, 210, 255, 0.4); transition: 0.3s; }
+        
+        #pantallaApp { position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; }
+        #map { position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 1; }
+        
+        /* HUD FLOTANTE PRINCIPAL */
+        .hud { 
+            position: absolute; top: 20px; left: 20px;
+            padding: 20px; background: rgba(8, 38, 46, 0.95); width: 90%; max-width: 400px; 
+            border-radius: 12px; border: 2px solid #00d2ff; z-index: 1000; 
+            box-shadow: 0 10px 30px rgba(0,0,0,0.8); transition: all 0.4s ease;
+            backdrop-filter: blur(5px); opacity: 1; pointer-events: auto;
+        }
+        
+        /* MODO CÍRCULO COMPACTO EN LA ESQUINA SUPERIOR IZQUIERDA */
+        .hud.en-circulo {
+            width: 55px !important; height: 55px !important; padding: 0 !important; border-radius: 50% !important;
+            overflow: hidden; cursor: pointer; display: flex !important; justify-content: center; align-items: center;
+            background: #f59e0b; border-color: #fff; box-shadow: 0 0 15px rgba(245, 158, 11, 0.8);
+        }
+        .hud.en-circulo .hud-content { display: none !important; }
+        .hud-circle-icon { display: none; font-size: 24px; line-height: 55px; text-align: center; width: 100%; height: 100%; }
+        .hud.en-circulo .hud-circle-icon { display: block !important; }
+
+        /* Botones Flotantes */
+        .fab-container { position: fixed; bottom: 20px; right: 20px; display: flex; flex-direction: column; gap: 15px; z-index: 2000; }
+        .fab-btn { width: 55px; height: 55px; border-radius: 50%; border: none; font-size: 24px; cursor: pointer; display: flex; justify-content: center; align-items: center; box-shadow: 0 5px 15px rgba(0,0,0,0.5); transition: 0.3s; color: white;}
+        .fab-btn:hover { transform: scale(1.1); }
+        .fab-ia { background: #6c5ce7; }
+        .fab-msg { background: #22c55e; }
+
+        .modal-flotante { position: fixed; bottom: 90px; right: 20px; background: #08262e; border: 2px solid #00d2ff; padding: 15px; border-radius: 12px; width: 300px; z-index: 2000; display: none; box-shadow: 0 10px 30px rgba(0,0,0,0.8); }
+        textarea, .chat-input { width: 100%; padding: 10px; box-sizing: border-box; background: #040e11; color: white; border: 1px solid #105060; border-radius: 8px;}
+        .msg-ia { background: rgba(108, 92, 231, 0.2); border: 1px solid #6c5ce7; padding: 8px 12px; border-radius: 10px; font-size: 13px; margin-bottom: 8px; }
+        .msg-user { background: rgba(0, 210, 255, 0.2); border: 1px solid #00d2ff; padding: 8px 12px; border-radius: 10px; font-size: 13px; margin-bottom: 8px; text-align: right; }
+
+        .leaflet-tooltip-top:before { border-top-color: #000 !important; }
+        .custom-tooltip { background-color: #000; border: 1px solid #00d2ff; color: #fff; font-weight: bold; padding: 5px 10px; border-radius: 5px; }
+    </style>
+</head>
+<body>
+
+    <div id="pantalla1" class="fullscreen-center fade-screen active">
+        <div class="auth-box">
+            <h2 class="glow-title">MÓDULO TÉCNICO</h2>
+            <p style="color: #6db1c2;">Identificación de Usuario</p>
+            <input type="tel" id="phoneInput" class="pin-input" placeholder="Tu Número Celular">
+            <button onclick="pedirAcceso()" class="btn-cyan">Continuar</button>
+        </div>
+    </div>
+
+    <div id="pantalla2" class="fullscreen-center fade-screen">
+        <div class="auth-box" id="cajaPin">
+            <h2 class="glow-title">SEGURIDAD</h2>
+            <p style="color: #6db1c2; font-size: 14px; margin-bottom: 20px;">Ingresa tu clave de autorización asignada.</p>
+            <input type="text" id="pinInput" class="pin-input" placeholder="Clave de Seguridad">
+            <button onclick="verificarPin()" class="btn-cyan">CONECTAR AL SISTEMA</button>
+        </div>
+    </div>
+
+    <div id="pantallaApp" class="fade-screen">
+        <div id="map"></div>
+        
+        <!-- HUD QUE SE CONVIERTE EN CÍRCULO EN LA ESQUINA SUPERIOR IZQUIERDA -->
+        <div class="hud" id="panelNavegacion" onclick="expandirHud(event)">
+            <div class="hud-circle-icon">🛰️</div>
+            <div class="hud-content" onclick="event.stopPropagation()">
+                <h3 id="saludoTecnico" style="color: #f59e0b; margin: 0 0 5px 0;">¡Hola! 👋</h3>
+                <p style="color: #6db1c2; font-size: 14px; margin: 0 0 15px 0;">Que tengas un excelente turno. Trabaja seguro.</p>
+
+                <div style="display: flex; gap: 10px; margin-bottom: 10px;">
+                    <input type="text" id="direccion" class="pin-input" style="margin:0; text-align:left; font-size:14px; padding:10px;" placeholder="Dirección. Ej: Calle 26 # 50">
+                    <button onclick="buscarDireccion()" class="btn-cyan" style="width:auto; padding:0 15px; font-size:13px;">Buscar</button>
+                </div>
+                
+                <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 15px;">
+                    <span style="color: #00d2ff; font-weight: bold; width: 60%; font-size: 14px;">⏱️ Minutos de viaje:</span>
+                    <input type="number" id="tiempoViaje" class="pin-input" style="margin:0; flex: 1; padding:10px; font-size:14px;" placeholder="Min." value="5">
+                </div>
+
+                <div style="display: flex; gap: 10px; flex-direction: column;">
+                    <button onclick="iniciarRuta()" class="btn-cyan" style="padding: 12px;">INICIAR RUTA</button>
+                    <button onclick="detenerRuta()" class="btn-cyan" style="background: #f59e0b; box-shadow: 0 4px 15px rgba(245, 158, 11, 0.4); padding: 12px;">DETENER RUTA</button>
+                    <button onclick="abrirNavegacion()" style="background: #0ea5e9; color: white; font-weight: bold; padding: 12px; border: none; border-radius: 8px; cursor: pointer;">
+                        🗺️ Navegar con Maps/Waze
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- BOTONES FLOTANTES -->
+        <div class="fab-container">
+            <button class="fab-btn fab-msg" onclick="toggleModal('modalSugerencia')" title="Buzón de Mensajes">📩</button>
+            <button class="fab-btn fab-ia" onclick="toggleModal('modalIA')" title="Asistente IA">🤖</button>
+        </div>
+
+        <!-- Modal Buzón -->
+        <div id="modalSugerencia" class="modal-flotante" onclick="event.stopPropagation()">
+            <h4 style="margin: 0 0 10px 0; color: #22c55e;">Buzón al Administrador</h4>
+            <textarea id="textoMejora" rows="3" placeholder="Reporte o mensaje..."></textarea>
+            <button onclick="enviarSugerencia()" class="btn-cyan" style="background: #22c55e; box-shadow: none; padding: 10px; margin-top: 10px;">Enviar Mensaje</button>
+        </div>
+
+        <!-- Modal Asistente IA -->
+        <div id="modalIA" class="modal-flotante" onclick="event.stopPropagation()">
+            <h4 style="margin: 0 0 10px 0; color: #6c5ce7;">Soporte IA Vektor</h4>
+            <div id="chatContainer" style="max-height: 180px; overflow-y: auto; margin-bottom: 10px; display:flex; flex-direction:column;">
+                <div class="msg-ia">Hola, soy el asistente virtual de Vektor. ¿En qué te puedo ayudar hoy con tu ruta?</div>
+            </div>
+            <div style="display:flex; gap:5px;">
+                <input type="text" id="inputIA" class="chat-input" placeholder="Escribe aquí..." onkeypress="if(event.key==='Enter') enviarIA()">
+                <button onclick="enviarIA()" class="btn-cyan" style="width:auto; padding:0 12px; font-size:12px;">➔</button>
+            </div>
+        </div>
+    </div>
+
+<script>
+    const SECRET = "SYS-GPS-X99-2026-BOGOTA";
+    let simInterval, map, markerInicio, markerDestino, traceGroup;
+    let miLat = 4.6097, miLng = -74.0817;
+    let nombreTecnico = localStorage.getItem('vektor_nombre_ia') || "";
+
+    const calaveraMoradaSVG = `<svg width="16" height="16" viewBox="0 0 24 24" fill="#a855f7"><path d="M12 2C7.58 2 4 5.58 4 10c0 1.84.58 3.54 1.58 4.95-.23.63-.44 1.29-.63 1.96C4.4 18.8 5 21 7.23 21h9.54c2.23 0 2.83-2.2 2.28-4.09-.19-.67-.4-1.33-.63-1.96C19.42 13.54 20 11.84 20 10c0-4.42-3.58-8-8-8zm-3 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm6 0c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm-3 4c1.1 0 2 .9 2 2H8c0-1.1.9-2 2-2z"/></svg>`;
+    const calaveraIcon = L.divIcon({html: calaveraMoradaSVG, className: '', iconSize: [16,16]});
+
+    window.onload = () => {
+        const guardadoTel = localStorage.getItem('vektor_phone');
+        if(guardadoTel) {
+            document.getElementById('phoneInput').value = guardadoTel;
+            document.getElementById('pantalla1').classList.remove('active');
+            document.getElementById('pantalla2').classList.add('active');
+        }
+        if(nombreTecnico) {
+            document.getElementById('saludoTecnico').innerText = `¡Hola, ${nombreTecnico}! 👋`;
+        }
+    };
+
+    function pedirAcceso() {
+        const phone = document.getElementById('phoneInput').value;
+        if(!phone) return alert("Ingresa un número celular.");
+        fetch('/api/request-access', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-App-Secret': SECRET }, body: JSON.stringify({ phone: phone }) })
+        .then(res => res.json()).then(data => {
+            if(data.success) {
+                document.getElementById('pantalla1').classList.remove('active');
+                setTimeout(() => { document.getElementById('pantalla2').classList.add('active'); }, 600);
+            }
+        });
+    }
+
+    function verificarPin() {
+        const phone = document.getElementById('phoneInput').value;
+        const pin = document.getElementById('pinInput').value;
+        if(!pin) return alert("Ingresa tu PIN.");
+
+        fetch('/api/login', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-App-Secret': SECRET }, body: JSON.stringify({ phone: phone, pin: pin }) })
+        .then(res => res.json()).then(data => {
+            if(data.success) {
+                localStorage.setItem('vektor_phone', phone);
+                document.getElementById('cajaPin').innerHTML = "<h2 class='glow-title' style='color:#22c55e;'>AUTORIZADO</h2><p style='color:white;'>Obteniendo GPS real...</p>";
+                
+                if (navigator.geolocation) {
+                    navigator.geolocation.getCurrentPosition(pos => {
+                        miLat = pos.coords.latitude; miLng = pos.coords.longitude;
+                        abrirMapa();
+                    }, err => { abrirMapa(); }, {enableHighAccuracy: true});
+                } else abrirMapa();
+            } else alert("❌ " + data.error);
+        });
+    }
+
+    function abrirMapa() {
+        document.getElementById('pantalla2').classList.remove('active');
+        document.getElementById('pantallaApp').classList.add('active'); 
+        iniciarMapaReal();
+    }
+
+    function iniciarMapaReal() {
+        if(map) return;
+        map = L.map('map', { zoomControl: false }).setView([miLat, miLng], 15);
+        L.control.zoom({ position: 'topright' }).addTo(map);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+        traceGroup = L.layerGroup().addTo(map);
+        
+        markerInicio = L.marker([miLat, miLng], {draggable: false}).addTo(map);
+        markerInicio.bindTooltip("YO", {permanent: true, direction: 'top', className: 'custom-tooltip'}).openTooltip();
+
+        markerDestino = L.marker([miLat + 0.005, miLng + 0.005], {draggable: true}).addTo(map);
+        markerDestino._icon.style.filter = "hue-rotate(120deg)";
+        markerDestino.bindTooltip("DESTINO", {permanent: true, direction: 'top', className: 'custom-tooltip'}).openTooltip();
+
+        if (navigator.geolocation) {
+            navigator.geolocation.watchPosition(pos => {
+                miLat = pos.coords.latitude; miLng = pos.coords.longitude;
+                markerInicio.setLatLng([miLat, miLng]);
+            }, err => {}, {enableHighAccuracy: true});
+        }
+    }
+
+    function buscarDireccion() {
+        const dir = document.getElementById('direccion').value;
+        if(!dir) return alert("Escribe una dirección.");
+        fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(dir + ', Bogotá, Colombia')}`)
+        .then(res => res.json()).then(data => {
+            if(data.length > 0) {
+                const lat = parseFloat(data[0].lat); const lon = parseFloat(data[0].lon);
+                markerDestino.setLatLng([lat, lon]);
+                map.setView([lat, lon], 15);
+            } else alert("Dirección no encontrada.");
+        });
+    }
+
+    function abrirNavegacion() {
+        const destLat = markerDestino.getLatLng().lat;
+        const destLng = markerDestino.getLatLng().lng;
+        window.location.href = `https://www.google.com/maps/dir/?api=1&destination=${destLat},${destLng}`;
+    }
+
+    function iniciarRuta() {
+        const destLat = markerDestino.getLatLng().lat;
+        const destLng = markerDestino.getLatLng().lng;
+        const tiempoMins = document.getElementById('tiempoViaje').value || 5;
+        const phoneActual = document.getElementById('phoneInput').value;
+        
+        // CONVIERTE EL HUD EN CÍRCULO FLOTANTE PERO MANTIENE LA NAVEGACIÓN ACTIVA EN SEGUNDO PLANO
+        document.getElementById('panelNavegacion').classList.add('en-circulo');
+        
+        traceGroup.clearLayers(); 
+        
+        fetch('/api/simulate', { 
+            method: 'POST', headers: { 'Content-Type': 'application/json', 'X-App-Secret': SECRET }, 
+            body: JSON.stringify({ phone: phoneActual, start_lat: miLat, start_lng: miLng, target_lat: destLat, target_lng: destLng, time: tiempoMins }) 
+        }).then(() => {
+            // Limpia cualquier intervalo anterior para evitar duplicados
+            if (simInterval) clearInterval(simInterval);
+
+            simInterval = setInterval(() => {
+                fetch('/api/location/' + phoneActual, { headers: { 'X-App-Secret': SECRET } })
+                .then(res => res.json())
+                .then(loc => {
+                    if (loc.status === "offline" || loc.status === "bloqueado" || loc.status === "eliminado") {
+                        clearInterval(simInterval);
+                        localStorage.removeItem('vektor_phone');
+                        document.body.innerHTML = `<div style="background:#0a0000; height:100vh; display:flex; flex-direction:column; justify-content:center; align-items:center; text-align:center; padding:20px;"><h1 style="color:#ff2a70;">ACCESO REVOCADO</h1></div>`;
+                        return;
+                    }
+                    
+                    // Dibuja el rastro sin importar si el panel está contraído o expandido
+                    L.marker([loc.lat, loc.lng], {icon: calaveraIcon}).addTo(traceGroup);
+                    markerInicio.setLatLng([loc.lat, loc.lng]); 
+                    map.panTo([loc.lat, loc.lng]);
+                    miLat = loc.lat; miLng = loc.lng; 
+                    
+                    if (window.AndroidGPS) { window.AndroidGPS.actualizarCoordenada(loc.lat, loc.lng); }
+                    if (loc.status === "Detenido" || loc.status === "Llegó") {
+                        // Al llegar al destino, se detiene la ruta automáticamente
+                        detenerRuta();
+                    }
+                });
+            }, 1000);
+        });
+    }
+
+    function detenerRuta() { 
+        // Vuelve a expandir el panel y corta la transmisión al servidor
+        document.getElementById('panelNavegacion').classList.remove('en-circulo');
+        fetch('/api/stop', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-App-Secret': SECRET }, body: JSON.stringify({ phone: document.getElementById('phoneInput').value }) }); 
+        if (simInterval) clearInterval(simInterval); 
+    }
+    
+    function expandirHud(e) {
+        const panel = document.getElementById('panelNavegacion');
+        if(panel.classList.contains('en-circulo')) {
+            panel.classList.remove('en-circulo');
+        }
+    }
+
+    function toggleModal(id) {
+        const modal = document.getElementById(id);
+        const isOpen = modal.style.display === 'block';
+        document.querySelectorAll('.modal-flotante').forEach(m => m.style.display = 'none');
+        modal.style.display = isOpen ? 'none' : 'block';
+    }
+
+    function enviarSugerencia() {
+        fetch('/api/enviar-sugerencia', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-App-Secret': SECRET }, body: JSON.stringify({ phone: document.getElementById('phoneInput').value, mensaje: document.getElementById('textoMejora').value }) })
+        .then(() => { alert("✅ Mensaje enviado."); document.getElementById('textoMejora').value = ""; toggleModal('modalSugerencia'); });
+    }
+
+    function enviarIA() {
+        const input = document.getElementById('inputIA');
+        const txt = input.value.trim();
+        if(!txt) return;
+
+        const chat = document.getElementById('chatContainer');
+        chat.innerHTML += `<div class="msg-user">${txt}</div>`;
+        input.value = "";
+        chat.scrollTop = chat.scrollHeight;
+
+        setTimeout(() => {
+            let respuesta = "Entendido, consulta cualquier novedad directamente con la central Vektor.";
+            const lower = txt.toLowerCase();
+
+            if(lower.includes("como quieres que te llame") || lower.includes("llámame") || lower.includes("llamame") || lower.includes("mi nombre es") || lower.includes("llamarme") || lower.includes("soy")) {
+                const partes = txt.split(" ");
+                const posibleNombre = partes[partes.length - 1];
+                nombreTecnico = posibleNombre.replace(/[^a-zA-Z]/g, '');
+                if(!nombreTecnico || nombreTecnico.length < 2) nombreTecnico = "Colega";
+                
+                localStorage.setItem('vektor_nombre_ia', nombreTecnico);
+                document.getElementById('saludoTecnico').innerText = `¡Hola, ${nombreTecnico}! 👋`;
+                respuesta = `¡Perfecto! Desde ahora te recordaré como ${nombreTecnico}. ¿En qué te ayudo con tu destino hoy?`;
+            } else if(lower.includes("ruta") || lower.includes("calle") || lower.includes("destino") || lower.includes("ir a") || lower.includes("dirección")) {
+                respuesta = nombreTecnico ? `${nombreTecnico}, recuerda escribir la calle o dirección en el buscador superior y fijar los minutos de viaje antes de dar clic en Iniciar Ruta.` : `Usa el buscador superior para fijar tu destino. Por cierto, ¿cómo quieres que te llame?`;
+            } else if(lower.includes("hola") || lower.includes("buen dia") || lower.includes("buenos días") || lower.includes("buenas")) {
+                respuesta = nombreTecnico ? `¡Hola de nuevo, ${nombreTecnico}! Tienes conexión estable con la central Vektor. ¿Listo para el turno?` : `¡Hola! Para darte una mejor atención, dime: ¿cómo quieres que te llame?`;
+            } else if(lower.includes("estado") || lower.includes("gps") || lower.includes("señal") || lower.includes("ubicación")) {
+                respuesta = `Tu señal GPS está activa, emitiendo rastro en tiempo real y sincronizada con el mapa del administrador.`;
+            } else if(lower.includes("ayuda") || lower.includes("soporte") || lower.includes("problema") || lower.includes("falla")) {
+                respuesta = `Si tienes inconvenientes, puedes reportarlo instantáneamente al administrador usando el botón verde de buzón (📩) ubicado en la parte inferior derecha.`;
+            } else if(lower.includes("gracias") || lower.includes("ok") || lower.includes("perfecto")) {
+                respuesta = `¡Con mucho gusto! Estoy aquí para asegurarme de que tu ruta sea segura y fluida.`;
+            } else if(lower.includes("clima") || lower.includes("tiempo")) {
+                respuesta = `Revisa las condiciones climáticas locales antes de iniciar tu desplazamiento para evitar demoras.`;
+            } else {
+                respuesta = nombreTecnico ? `Comprendo, ${nombreTecnico}. ¿Necesitas que te ayude a recalcular algún punto en el mapa o tienes dudas sobre el servicio?` : `Estoy aquí para asistirte en tu turno. Dime cómo te llamas para personalizar nuestra conversación.`;
+            }
+
+            chat.innerHTML += `<div class="msg-ia">${respuesta}</div>`;
+            chat.scrollTop = chat.scrollHeight;
+        }, 300);
+    }
+</script>
+</body>
+</html>
